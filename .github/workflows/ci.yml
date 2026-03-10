@@ -33,6 +33,7 @@ jobs:
 
       - name: Publish JUnit Report
         uses: mikepenz/action-junit-report@v4
+        # 总是生成报告
         if: always() 
         with:
           report_paths: '**/target/surefire-reports/TEST-*.xml'
