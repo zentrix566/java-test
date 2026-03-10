@@ -9,7 +9,7 @@ on:
 jobs:
   # 阶段 1：自动化测试与熔断门禁
   test:
-    name: Unit Test & Quality Gate
+    name: Unit Test & Coverage Check
     runs-on: ubuntu-latest
     permissions:
       contents: read
