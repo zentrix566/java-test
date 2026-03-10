@@ -1,4 +1,4 @@
-name: Java CI with Maven & JUnit Visualization
+name: Java CI with Quality Gate
 
 on:
   push:
@@ -7,53 +7,68 @@ on:
     branches: [ "main" ]
 
 jobs:
+  # 阶段 1：自动化测试与质量门禁
   test:
-    name: Build and Test (JDK ${{ matrix.java }})
+    name: Unit Test & Coverage Check
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      checks: write # 必须开启，用于发布测试报告到 GitHub Checks
-      pull-requests: write # 用于在 PR 中展示测试汇总
-
-    strategy:
-      fail-fast: false # 即使某个版本失败，也让其他版本跑完
-      matrix:
-        java: [ '17', '21' ] # 运维视角：确保在不同 LTS 版本下的兼容性
+      checks: write
+      pull-requests: write
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up JDK ${{ matrix.java }}
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: ${{ matrix.java }}
+          java-version: '17'
           distribution: 'temurin'
-          cache: maven # 自动缓存 ~/.m2/repository，加速后续构建
+          cache: maven
 
-      - name: Run JUnit Tests
-        run: mvn clean test
-        # 即使测试失败，也要继续执行后续生成报告的步骤
-        continue-on-error: false 
+      - name: Run Tests with Coverage Check
+        # 核心熔断点：如果测试失败或 JaCoCo 覆盖率未达标（需在 pom.xml 配置），此步骤报错，流水线立即停止
+        run: mvn clean test jacoco:check
 
-      # 生成可视化报告
-      - name: Publish Test Report
+      - name: Publish JUnit Test Report
         uses: mikepenz/action-junit-report@v4
-        # 无论测试通过还是失败，都生成可视化报告
-        if: always() 
+        if: always() # 即使测试失败也要生成报告，方便排查原因
         with:
           report_paths: '**/target/surefire-reports/TEST-*.xml'
-          annotate_only: false # 在 Checks 页面生成详细注释
           detailed_summary: true
 
-      - name: Upload Test Artifacts
+      - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: junit-reports-jdk-${{ matrix.java }}
-          path: target/surefire-reports/
-          retention-days: 7
+          name: jacoco-report
+          path: target/site/jacoco/
 
-      # 构建并检查 JAR 是否可用（模拟预发布环境）
-      - name: Package Application
+  # 阶段 2：制品构建（只有阶段 1 成功才会运行）
+  build-and-package:
+    name: Build Artifact
+    needs: test # 关键实现：建立 Job 依赖，实现“熔断”逻辑
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Package JAR
+        # 此时只需打包，不再重复运行测试以节省时间
         run: mvn package -DskipTests
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-jar
+          path: target/*.jar

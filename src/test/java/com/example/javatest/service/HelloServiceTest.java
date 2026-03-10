@@ -29,4 +29,10 @@ class HelloServiceTest {
         String result = helloService.sayHello("  Test User  ");
         assertEquals("Hello Test User!", result);
     }
+
+    @Test
+    void intentionallyFailingTest_ForTestingPurposes() {
+        // 这是一个故意失败的测试，用于验证测试失败时构建会被阻止
+        assertEquals("Wrong Result", helloService.sayHello("Test"));
+    }
 }
