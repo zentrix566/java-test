@@ -33,6 +33,10 @@ class HelloServiceTest {
     @Test
     void intentionallyFailingTest_ForTestingPurposes() {
         // 这是一个故意失败的测试，用于验证测试失败时构建会被阻止
+<<<<<<< Updated upstream
         assertEquals("Wrong Result", helloService.sayHello("Test"));
+=======
+        assertEquals("Wrong Result-2026年3月10日15:19:59", helloService.sayHello("Test"));
+>>>>>>> Stashed changes
     }
 }
