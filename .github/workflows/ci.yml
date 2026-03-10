@@ -7,9 +7,9 @@ on:
     branches: [ "main" ]
 
 jobs:
-  # 阶段 1：自动化测试与质量门禁
+  # 阶段 1：自动化测试与熔断门禁
   test:
-    name: Unit Test & Coverage Check
+    name: Unit Test & Quality Gate
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -27,28 +27,27 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Run Tests with Coverage Check
-        # 核心熔断点：如果测试失败或 JaCoCo 覆盖率未达标（需在 pom.xml 配置），此步骤报错，流水线立即停止
+      - name: Run Tests and Coverage Check
+        # 这一步会顺序触发：测试 -> 生成报告 -> 检查 80% 阈值
         run: mvn clean test jacoco:check
 
-      - name: Publish JUnit Test Report
+      - name: Publish JUnit Report
         uses: mikepenz/action-junit-report@v4
-        if: always() # 即使测试失败也要生成报告，方便排查原因
+        if: always() 
         with:
           report_paths: '**/target/surefire-reports/TEST-*.xml'
-          detailed_summary: true
 
-      - name: Upload Coverage Report
+      - name: Upload JaCoCo Artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: jacoco-report
           path: target/site/jacoco/
 
-  # 阶段 2：制品构建（只有阶段 1 成功才会运行）
+  # 阶段 2：制品构建（仅在测试和覆盖率达标后运行）
   build-and-package:
-    name: Build Artifact
-    needs: test # 关键实现：建立 Job 依赖，实现“熔断”逻辑
+    name: Build Production Artifact
+    needs: test # 物理熔断：test 失败则本任务不运行
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
@@ -56,19 +55,11 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: maven
-
-      - name: Package JAR
-        # 此时只需打包，不再重复运行测试以节省时间
+      - name: Build JAR
         run: mvn package -DskipTests
 
-      - name: Upload Build Artifact
+      - name: Upload JAR
         uses: actions/upload-artifact@v4
         with:
-          name: production-jar
+          name: final-binary
           path: target/*.jar
